@@ -1,31 +1,13 @@
-"""
-Superstore Supply Chain BI Dashboard
--------------------------------------
-Run locally with:
-    pip install streamlit plotly pandas
-    streamlit run superstore_dashboard.py
-
-Each metric below is written as a clear, named aggregation so you can
-port the same logic into Power BI as DAX measures later
-(e.g. Total Sales = SUM(Sales), Profit Margin % = SUM(Profit)/SUM(Sales)).
-"""
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# ----------------------------------------------------------------------
-# PAGE CONFIG
-# ----------------------------------------------------------------------
 st.set_page_config(
     page_title="Superstore Supply Chain BI",
     page_icon="📦",
     layout="wide",
 )
 
-# ----------------------------------------------------------------------
-# DATA LOADING
-# ----------------------------------------------------------------------
 @st.cache_data
 def load_data(path: str = "superstore_supply_chain.csv") -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["Order Date", "Ship Date"])
@@ -36,9 +18,6 @@ def load_data(path: str = "superstore_supply_chain.csv") -> pd.DataFrame:
 
 df = load_data()
 
-# ----------------------------------------------------------------------
-# SIDEBAR FILTERS
-# ----------------------------------------------------------------------
 st.sidebar.header("Filters")
 
 date_min, date_max = df["Order Date"].min(), df["Order Date"].max()
@@ -71,9 +50,6 @@ f = df.loc[mask]
 
 st.sidebar.markdown(f"**Rows after filters:** {len(f):,} / {len(df):,}")
 
-# ----------------------------------------------------------------------
-# HEADER + KPI ROW
-# ----------------------------------------------------------------------
 st.title("📦 Superstore Supply Chain BI Dashboard")
 st.caption("Sales, Profitability & Inventory Health Overview")
 
@@ -94,16 +70,11 @@ k6.metric("Low Stock Items", f"{low_stock_count:,}")
 
 st.divider()
 
-# ----------------------------------------------------------------------
-# TABS
-# ----------------------------------------------------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Sales & Profit", "🗺️ Category & Region", "🏭 Inventory & Supply Chain"])
 
-# ---------------- TAB 1: SALES & PROFIT ----------------
 with tab1:
     col1, col2 = st.columns(2)
 
-    # Monthly trend
     monthly = f.groupby("Order Month").agg(
         Sales=("Sales", "sum"), Profit=("Profit", "sum")
     ).reset_index()
@@ -113,7 +84,6 @@ with tab1:
     )
     col1.plotly_chart(fig_trend, use_container_width=True)
 
-    # Discount vs Profit relationship
     fig_disc = px.scatter(
         f, x="Discount", y="Profit", color="Category",
         title="Discount Impact on Profit", opacity=0.5
@@ -122,7 +92,6 @@ with tab1:
 
     col3, col4 = st.columns(2)
 
-    # Ship mode performance
     ship_perf = f.groupby("Ship Mode").agg(
         Avg_Days=("Days to Ship", "mean"), Orders=("Order ID", "nunique")
     ).reset_index()
@@ -132,7 +101,6 @@ with tab1:
     )
     col3.plotly_chart(fig_ship, use_container_width=True)
 
-    # Top 10 products by profit
     top_products = (
         f.groupby("Product Name")["Profit"].sum().sort_values(ascending=False).head(10).reset_index()
     )
@@ -143,7 +111,6 @@ with tab1:
     fig_top.update_layout(yaxis={"categoryorder": "total ascending"})
     col4.plotly_chart(fig_top, use_container_width=True)
 
-# ---------------- TAB 2: CATEGORY & REGION ----------------
 with tab2:
     col1, col2 = st.columns(2)
 
@@ -166,18 +133,15 @@ with tab2:
     )
     col2.plotly_chart(fig_region, use_container_width=True)
 
-    # Segment breakdown
     seg_perf = f.groupby("Segment").agg(
         Sales=("Sales", "sum"), Profit=("Profit", "sum"), Orders=("Order ID", "nunique")
     ).reset_index()
     fig_seg = px.pie(seg_perf, names="Segment", values="Sales", title="Sales Share by Segment", hole=0.4)
     st.plotly_chart(fig_seg, use_container_width=True)
 
-# ---------------- TAB 3: INVENTORY & SUPPLY CHAIN ----------------
 with tab3:
     col1, col2 = st.columns(2)
 
-    # Stock status breakdown
     stock_status = f["Stock_Status"].value_counts().reset_index()
     stock_status.columns = ["Stock_Status", "Count"]
     fig_stock = px.pie(
@@ -187,7 +151,6 @@ with tab3:
     )
     col1.plotly_chart(fig_stock, use_container_width=True)
 
-    # Restock needed by warehouse
     restock = f.groupby("Warehouse")["Restock_Needed"].sum().reset_index()
     fig_restock = px.bar(
         restock, x="Warehouse", y="Restock_Needed",
@@ -198,7 +161,6 @@ with tab3:
 
     col3, col4 = st.columns(2)
 
-    # Supplier performance: total inventory value & avg lead time
     supplier_perf = f.groupby("Supplier").agg(
         Inventory_Value=("Inventory_Value", "sum"),
         Avg_Lead_Time=("Lead_Time_Days", "mean"),
@@ -212,7 +174,6 @@ with tab3:
     fig_supplier.update_layout(yaxis={"categoryorder": "total ascending"})
     col3.plotly_chart(fig_supplier, use_container_width=True)
 
-    # Stock on hand vs reorder point (items below or near reorder point)
     near_reorder = f[f["Stock_On_Hand"] <= f["Reorder_Point"] * 1.2].copy()
     near_reorder = near_reorder.sort_values("Stock_On_Hand").head(15)
     fig_reorder = px.bar(
@@ -223,7 +184,6 @@ with tab3:
     fig_reorder.update_layout(yaxis={"categoryorder": "total ascending"})
     col4.plotly_chart(fig_reorder, use_container_width=True)
 
-    # Raw low-stock table
     st.subheader("⚠️ Low Stock / Restock Needed Items")
     low_stock_table = f[f["Restock_Needed"] == 1][
         ["Product Name", "Warehouse", "Supplier", "Stock_On_Hand", "Reorder_Point", "Lead_Time_Days"]
